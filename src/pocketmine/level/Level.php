@@ -1234,77 +1234,112 @@ class Level implements ChunkManager, Metadatable{
 		return $collides;
 	}
 
-	/*
-	public function rayTraceBlocks(Vector3 $pos1, Vector3 $pos2, $flag = false, $flag1 = false, $flag2 = false){
-		if(!is_nan($pos1->x) and !is_nan($pos1->y) and !is_nan($pos1->z)){
-			if(!is_nan($pos2->x) and !is_nan($pos2->y) and !is_nan($pos2->z)){
-				$x1 = (int) $pos1->x;
-				$y1 = (int) $pos1->y;
-				$z1 = (int) $pos1->z;
-				$x2 = (int) $pos2->x;
-				$y2 = (int) $pos2->y;
-				$z2 = (int) $pos2->z;
+	public function rayTraceBlocksWithDirection(Vector3 $start, Vector3 $directionVector, float $maxDistance) : ?MovingObjectPosition{
+		return $this->rayTraceBlocksBetweenPoints($start, $start->add($directionVector->multiply($maxDistance)));
+	}
 
-				$block = $this->getBlock(Vector3::createVector($x1, $y1, $z1));
+	/**
+	 * Performs a ray trace between the start and end coordinates. Returns a hit result if the ray trace is intercepted
+	 * by a block with more than zero collision boxes, or null if the ray trace went the full distance.
+	 *
+	 * This is an implementation of the algorithm described in the link below.
+	 * @link http://www.cse.yorku.ca/~amana/research/grid.pdf
+	 *
+	 * @param Vector3 $start
+	 * @param Vector3 $end
+	 *
+	 * @return null|MovingObjectPosition
+	 */
+	public function rayTraceBlocksBetweenPoints(Vector3 $start, Vector3 $end) : ?MovingObjectPosition{
+		$currentBlock = $start->floor();
 
-				if(!$flag1 or $block->getBoundingBox() !== null){
-					$ob = $block->calculateIntercept($pos1, $pos2);
-					if($ob !== null){
-						return $ob;
-					}
+		$directionVector = $end->subtract($start)->normalize();
+		if($directionVector->lengthSquared() <= 0){
+			throw new \InvalidArgumentException("Start and end points are the same, giving a zero direction vector");
+		}
+
+		$radius = $start->distance($end);
+
+		$stepX = $directionVector->x <=> 0;
+		$stepY = $directionVector->y <=> 0;
+		$stepZ = $directionVector->z <=> 0;
+
+		//Initialize the step accumulation variables depending how far into the current block the start position is. If
+		//the start position is on the corner of the block, these will be zero.
+		$tMaxX = $this->rayTraceDistanceToBoundary($start->x, $directionVector->x);
+		$tMaxY = $this->rayTraceDistanceToBoundary($start->y, $directionVector->y);
+		$tMaxZ = $this->rayTraceDistanceToBoundary($start->z, $directionVector->z);
+
+		//The change in t on each axis when taking a step on that axis (always positive).
+		$tDeltaX = $directionVector->x == 0 ? 0 : $stepX / $directionVector->x;
+		$tDeltaY = $directionVector->y == 0 ? 0 : $stepY / $directionVector->y;
+		$tDeltaZ = $directionVector->z == 0 ? 0 : $stepZ / $directionVector->z;
+
+		while(true){
+			$block = $this->getBlock($currentBlock);
+			$hit = $block->calculateIntercept($start, $end);
+			if($hit !== null){
+				return $hit;
+			}
+
+			// tMaxX stores the t-value at which we cross a cube boundary along the
+			// X axis, and similarly for Y and Z. Therefore, choosing the least tMax
+			// chooses the closest cube boundary.
+			if($tMaxX < $tMaxY and $tMaxX < $tMaxZ){
+				if($tMaxX > $radius){
+					break;
 				}
-
-				$movingObjectPosition = null;
-
-				$k = 200;
-
-				while($k-- >= 0){
-					if(is_nan($pos1->x) or is_nan($pos1->y) or is_nan($pos1->z)){
-						return null;
-					}
-
-					if($x1 === $x2 and $y1 === $y2 and $z1 === $z2){
-						return $flag2 ? $movingObjectPosition : null;
-					}
-
-					$flag3 = true;
-					$flag4 = true;
-					$flag5 = true;
-
-					$i = 999;
-					$j = 999;
-					$k = 999;
-
-					if($x1 > $x2){
-						$i = $x2 + 1;
-					}elseif($x1 < $x2){
-						$i = $x2;
-					}else{
-						$flag3 = false;
-					}
-
-					if($y1 > $y2){
-						$j = $y2 + 1;
-					}elseif($y1 < $y2){
-						$j = $y2;
-					}else{
-						$flag4 = false;
-					}
-
-					if($z1 > $z2){
-						$k = $z2 + 1;
-					}elseif($z1 < $z2){
-						$k = $z2;
-					}else{
-						$flag5 = false;
-					}
-
-					//TODO
+				$currentBlock->x += $stepX;
+				$tMaxX += $tDeltaX;
+			}elseif($tMaxY < $tMaxZ){
+				if($tMaxY > $radius){
+					break;
 				}
+				$currentBlock->y += $stepY;
+				$tMaxY += $tDeltaY;
+			}else{
+				if($tMaxZ > $radius){
+					break;
+				}
+				$currentBlock->z += $stepZ;
+				$tMaxZ += $tDeltaZ;
 			}
 		}
+
+		return null;
 	}
-	*/
+
+	/**
+	 * Returns the distance that must be travelled on an axis from the start point with the direction vector component to
+	 * cross a block boundary.
+	 *
+	 * For example, given an X coordinate inside a block and the X component of a direction vector, will return the distance
+	 * travelled by that direction component to reach a block with a different X coordinate.
+	 *
+	 * Find the smallest positive t such that s+t*ds is an integer.
+	 *
+	 * @param float $s Starting coordinate
+	 * @param float $ds Direction vector component of the relevant axis
+	 *
+	 * @return float Distance along the ray trace that must be travelled to cross a boundary.
+	 */
+	private function rayTraceDistanceToBoundary(float $s, float $ds) : float{
+		if($ds == 0){
+			return INF;
+		}
+
+		if($ds < 0){
+			$s = -$s;
+			$ds = -$ds;
+
+			if(floor($s) == $s){ //exactly at coordinate, will leave the coordinate immediately by moving negatively
+				return 0;
+			}
+		}
+
+		// problem is now s+t*ds = 1
+		return (1 - ($s - floor($s))) / $ds;
+	}
 
 	public function getFullLight(Vector3 $pos) : int{
 		return $this->getFullLightAt($pos->x, $pos->y, $pos->z);
