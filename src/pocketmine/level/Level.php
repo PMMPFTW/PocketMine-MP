@@ -1276,7 +1276,7 @@ class Level implements ChunkManager, Metadatable{
 		$tDeltaZ = $directionVector->z == 0 ? 0 : $stepZ / $directionVector->z;
 
 		while(true){
-			$block = $this->getBlock($currentBlock);
+			$block = $this->getBlockAt($currentBlock->x, $currentBlock->y, $currentBlock->z);
 			$hit = $block->calculateIntercept($start, $end);
 			if($hit !== null){
 				return $hit;
