@@ -24,7 +24,9 @@ declare(strict_types=1);
 namespace pocketmine\block;
 
 use pocketmine\item\Item;
+use pocketmine\level\MovingObjectPosition;
 use pocketmine\math\AxisAlignedBB;
+use pocketmine\math\Vector3;
 
 
 /**
@@ -82,4 +84,7 @@ class Air extends Transparent{
 		return 0;
 	}
 
+	public function calculateIntercept(Vector3 $pos1, Vector3 $pos2) : ?MovingObjectPosition{
+		return null;
+	}
 }
