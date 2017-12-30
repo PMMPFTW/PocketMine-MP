@@ -34,6 +34,7 @@ use pocketmine\item\enchantment\Enchantment;
 use pocketmine\item\enchantment\EnchantmentInstance;
 use pocketmine\level\Level;
 use pocketmine\math\Vector3;
+use pocketmine\nbt\LittleEndianNBTStream;
 use pocketmine\nbt\NBT;
 use pocketmine\nbt\tag\ByteTag;
 use pocketmine\nbt\tag\CompoundTag;
@@ -64,7 +65,7 @@ class Item implements ItemIds, \JsonSerializable{
 		}
 
 		if(self::$cachedParser === null){
-			self::$cachedParser = new NBT(NBT::LITTLE_ENDIAN);
+			self::$cachedParser = new LittleEndianNBTStream();
 		}
 
 		self::$cachedParser->read($tag);
@@ -79,7 +80,7 @@ class Item implements ItemIds, \JsonSerializable{
 
 	private static function writeCompoundTag(CompoundTag $tag) : string{
 		if(self::$cachedParser === null){
-			self::$cachedParser = new NBT(NBT::LITTLE_ENDIAN);
+			self::$cachedParser = new LittleEndianNBTStream();
 		}
 
 		self::$cachedParser->setData($tag);
@@ -619,32 +620,6 @@ class Item implements ItemIds, \JsonSerializable{
 	 */
 	final public function canBePlaced() : bool{
 		return $this->block !== null and $this->block->canBePlaced();
-	}
-
-	/**
-	 * Returns whether an entity can eat or drink this item.
-	 * @return bool
-	 */
-	public function canBeConsumed() : bool{
-		return false;
-	}
-
-	/**
-	 * Returns whether this item can be consumed by the supplied Entity.
-	 * @param Entity $entity
-	 *
-	 * @return bool
-	 */
-	public function canBeConsumedBy(Entity $entity) : bool{
-		return $this->canBeConsumed();
-	}
-
-	/**
-	 * Called when the item is consumed by an Entity.
-	 * @param Entity $entity
-	 */
-	public function onConsume(Entity $entity){
-
 	}
 
 	/**
